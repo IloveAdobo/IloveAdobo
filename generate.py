@@ -104,11 +104,11 @@ def build(rows, art, W, fs, lh, x_info, x_end, charw, show_art):
                 add(f'<text x="{x_end}" y="{y}" font-size="{fs}" text-anchor="end" class="{cls}">{escape(v)}</text>')
                 y += lh
     y_end = y
-    H = max(y_end + 26, (y0 + len(art) * 12.8 + 40) if show_art else 0)
+    H = max(y_end + 26, (y0 + len(art) * 10.4 + 40) if show_art else 0)
     if show_art:
-        ay = (H - len(art) * 12.8) / 2 + 22
+        ay = (H - len(art) * 10.4) / 2 + 22
         for i, l in enumerate(art):
-            add(f'<text x="26" y="{ay+i*12.8:.1f}" font-size="11.5" class="art" xml:space="preserve">{escape(l) or " "}</text>')
+            add(f'<text x="26" y="{ay+i*10.4:.1f}" font-size="9" class="art" xml:space="preserve">{escape(l) or " "}</text>')
     style = (f'<style>text{{font-family:{FONT};white-space:pre}} .head{{fill:{C["head"]}}} .lab{{fill:{C["lab"]};font-weight:700}} '
              f'.txt{{fill:{C["txt"]}}} .link{{fill:{C["link"]}}} .art{{fill:{C["art"]}}}</style>')
     return (f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H:.0f}" viewBox="0 0 {W} {H:.0f}" role="img" '
