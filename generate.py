@@ -48,12 +48,37 @@ def api(path):
     with urllib.request.urlopen(req, timeout=20) as r:
         return json.load(r)
 
+def graphql_commits(login, created_at):
+    """Total commit contributions across all years (includes private ones if the
+    profile setting 'Include private contributions' is on)."""
+    import datetime as dt
+    q = ("query($login:String!,$from:DateTime!,$to:DateTime!){user(login:$login){"
+         "contributionsCollection(from:$from,to:$to){totalCommitContributions restrictedContributionsCount}}}")
+    now = dt.datetime.now(dt.timezone.utc)
+    total = 0
+    for year in range(int(created_at[:4]), now.year + 1):
+        start = dt.datetime(year, 1, 1, tzinfo=dt.timezone.utc)
+        end = min(dt.datetime(year, 12, 31, 23, 59, 59, tzinfo=dt.timezone.utc), now)
+        body = json.dumps({"query": q, "variables": {"login": login,
+            "from": start.strftime("%Y-%m-%dT%H:%M:%SZ"), "to": end.strftime("%Y-%m-%dT%H:%M:%SZ")}}).encode()
+        req = urllib.request.Request("https://api.github.com/graphql", data=body, method="POST",
+            headers={"Authorization": "Bearer " + TOKEN, "Content-Type": "application/json",
+                     "User-Agent": "profile-readme-generator"})
+        with urllib.request.urlopen(req, timeout=20) as r:
+            data = json.load(r)
+        if "errors" in data:
+            raise RuntimeError(data["errors"][0].get("message", "graphql error"))
+        c = data["data"]["user"]["contributionsCollection"]
+        total += c["totalCommitContributions"] + c["restrictedContributionsCount"]
+    return total
+
 def fetch_stats():
     na = "--"
     s = {"Repos:": na, "Stars:": na, "Commits:": na, "Followers:": na}
     if not USERNAME:
         print("USERNAME not set: stats left as '--'", file=sys.stderr); return s
     u = urllib.parse.quote(USERNAME)
+    user = {}
     try:
         user = api(f"/users/{u}")
         s["Repos:"] = f'{user["public_repos"]:,}'
@@ -68,10 +93,17 @@ def fetch_stats():
             page += 1
         s["Stars:"] = f"{stars:,}"
     except Exception as e: print("stars:", e, file=sys.stderr)
-    try:
-        c = api(f"/search/commits?q=author:{u}&per_page=1")
-        s["Commits:"] = f'{c["total_count"]:,}'
-    except Exception as e: print("commits:", e, file=sys.stderr)
+    commits = None
+    if TOKEN:
+        try:
+            commits = graphql_commits(USERNAME, user.get("created_at", "2008-01-01T00:00:00Z"))
+        except Exception as e: print("graphql commits:", e, file=sys.stderr)
+    if commits is None:
+        try:
+            commits = api(f"/search/commits?q=author:{u}&per_page=1")["total_count"]
+        except Exception as e: print("search commits:", e, file=sys.stderr)
+    if commits is not None:
+        s["Commits:"] = f"{commits:,}"
     return s
 
 def build(rows, art, W, fs, lh, x_info, x_end, charw, show_art):
